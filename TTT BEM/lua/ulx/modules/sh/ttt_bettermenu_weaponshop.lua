@@ -1,11 +1,11 @@
 -- Code by Alf21 (for ULX menu) edited by fresh garry
-local CATEGORY_NAME  = "TTT Weaponshop" 
+local CATEGORY_NAME = "TTT Weaponshop"
 local gamemode_error = "The current gamemode is not trouble in terrorest town"
 
 function GamemodeCheck(calling_ply)
-	if not GetConVar("gamemode"):GetString() == "terrortown" then
+	if GetConVar("gamemode"):GetString() ~= "terrortown" then
 		ULib.tsayError(calling_ply, gamemode_error, true)
-        
+
 		return true
 	else
 		return false
@@ -13,10 +13,10 @@ function GamemodeCheck(calling_ply)
 end
 
 function ulx.bettermenu_weaponshop(calling_ply)
-	if not GetConVar("gamemode"):GetString() == "terrortown" then 
-        ULib.tsayError(calling_ply, gamemode_error, true) 
-    else
-    	calling_ply:ConCommand("bettermenu_weaponshop")
+	if GetConVar("gamemode"):GetString() ~= "terrortown" then
+		ULib.tsayError(calling_ply, gamemode_error, true)
+	else
+		calling_ply:ConCommand("bettermenu_weaponshop")
 	end
 end
 
