@@ -1,14 +1,13 @@
 -- Setup for TTT2
-if CLIENT then
-	hook.Add("TTT_PreventUseMainShopSystem", "TTT_PreventUseMainShopSystem4TTTBetterTraitorMenu", function()
-		TTT2Active = true
-		print("TTT Bettermenu: TTT2 Compatibility is active!")
-		return true
-	end)
-end
+hook.Add("TTT2ModifyFiles", "OctagonalHudOverrideTTT2", function(files)
+	files["cl_equip"].file = "cl_equip.lua"
+
+	print("TTT Bettermenu: TTT2 Compatibility is active!")
+end)
 
 if SERVER then
 	util.AddNetworkString("bettermenu_weaponshop")
+
 	concommand.Add("bettermenu_weaponshop", function(ply, cmd, args)
 		net.Start("bettermenu_weaponshop")
 		net.Send(ply)
