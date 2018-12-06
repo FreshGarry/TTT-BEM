@@ -1,4 +1,5 @@
 -- Code by Alf21 (for ULX menu) edited by fresh garry
+--[[
 local CATEGORY_NAME = "TTT Weaponshop"
 local gamemode_error = "The current gamemode is not trouble in terrorest town"
 
@@ -24,3 +25,4 @@ local bettermenu_weaponshop = ulx.command(CATEGORY_NAME, "ulx bettermenu_weapons
 bettermenu_weaponshop:defaultAccess(ULib.ACCESS_SUPERADMIN)
 bettermenu_weaponshop:setOpposite("ulx silent bettermenu_weaponshop", {_, _, _, true}, "!sbettermenu_weaponshop", true)
 bettermenu_weaponshop:help("Opens the bettermenu_weaponshop.")
+]]

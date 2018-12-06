@@ -1858,6 +1858,7 @@ hook.Add("TTTSettingsTabs", "TTTSettingsTab4TTTBetterTraitorMenu", function(dtab
 end)
 
 -- weaponshop
+--[[
 if TTT2 then
 	function GetEquipmentForRoleAll()
 		-- need to build equipment cache?
@@ -2580,3 +2581,4 @@ if TTT2 then
 	end
 	net.Receive("bettermenu_weaponshop", WeaposhopPopup)
 end
+]]
