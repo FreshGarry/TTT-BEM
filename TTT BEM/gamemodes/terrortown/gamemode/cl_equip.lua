@@ -901,7 +901,7 @@ local function TraitorMenuPopup()
 
 	local role = TTT2 and ply:GetSubRole() or not TTT2 and ply:GetRole()
 
-	if not ply:IsSpec() and not IsValid(ply) or not ((role and TTTRoles[role] and TTTRoles[role].HasShop) or ply:IsActiveShopper()) or not ply:IsTerror() then return end
+	if not ply:IsSpec() and not IsValid(ply) or not ((role and TTTRoles and TTTRoles[role] and TTTRoles[role].HasShop) or ply:IsActiveShopper()) or not ply:IsTerror() then return end
 
 	-- refresh Variables
 	StandartSort = math.min(math.max(math.floor(StandartSortRaw:GetFloat()), 1), 3)
