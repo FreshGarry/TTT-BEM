@@ -4,7 +4,7 @@
 -- reset Variables and add ConVars
 
 -- Table with Addons
-local Version = "2.4"
+local Version = "2.5"
 
 if not TTTFGAddons then
 	TTTFGAddons = {}
@@ -78,6 +78,7 @@ local AutobuyRoundbegin = CreateClientConVar("ttt_bettermenu_autobuy_roundbegin"
 local CloseByPressCAgainRaw = CreateClientConVar("ttt_bettermenu_closebypressc", "1", true, false, "Closes the menu when your pressing C and its open. Def: 1")
 local StandartSortRaw = CreateClientConVar("ttt_bettermenu_defaultorder", "1", true, false, "The default order of the menu. (1 = Default, 2 = Name, 3 = Slot) Def: 1")
 local StandartSort = math.min(math.max(math.floor(StandartSortRaw:GetFloat()), 1), 3)
+local TTT2Info = CreateClientConVar("ttt_bettermenu_TTT2_desc_item_info", "0", true, false, "Enables or disables the advanced TTT2 Item Info. Def: 0")
 
 if StandartSort == 1 then
 	FirstSort = "Default"
@@ -389,6 +390,25 @@ function TTT2GetEquipmentForRole(role)
 	return Equipment[fallback] or {}
 end
 
+local function teamHasBought(sel)
+	local result = false
+	for k, v in pairs(team.GetPlayers(LocalPlayer():Team())) do
+		if v:HasBought(tostring(sel.id)) then
+			result = true
+		end
+	end
+	return result
+end
+local function globalHasBought(sel)
+	local result = false
+	for k, v in pairs(player.GetAll()) do
+		if v:HasBought(tostring(sel.id)) then
+			result = true
+		end
+	end
+	return result
+end
+
 -- functions (Select, Search, Sortate)
 local function Select(Equip, Selection) -- !rework!
 	if Selection then
@@ -442,6 +462,7 @@ local function Search(Equip, Search) -- Search function new(test needed)
 end
 
 local function Sortate(Equip, Sortation) -- Sortate new (test needed)
+	local NewEquip = false
 	if Sortation then
 		LastSortation = Sortation
 	else
@@ -449,7 +470,6 @@ local function Sortate(Equip, Sortation) -- Sortate new (test needed)
 	end
 
 	if Sortation == "Slot" then
-		PrintTable(Equip)
 
 		local SortResult = {}
 		local items = {}
@@ -776,81 +796,133 @@ end
 
 -- Creates tabel of labels showing the status of ordering prerequisites
 local function PreqLabels(parent, x, y)
-	local tbl = {}
-
-	tbl.credits = vgui.Create("DLabel", parent)
-	tbl.credits:SetTooltip(GetTranslation("equip_help_cost"))
-	tbl.credits:SetPos(x, y)
-
-	tbl.credits.Check = function(s, sel)
+	if not parent then
+		sel = x
+		local result = true
 		local credits = LocalPlayer():GetCredits()
+		if TTT2 then
+			result = credits >= sel.credits
+		else
+			result = credits > 0
+		end
+		if ItemIsWeapon(sel) and (not CanCarryWeapon(sel)) then
+			result = false
+		elseif (not ItemIsWeapon(sel)) and LocalPlayer():HasEquipmentItem(sel.id) then
+			result = false
+		end
+		if TTT2 then
+			if sel.limited and LocalPlayer():HasBought(tostring(sel.id)) then
+				result = false
+			elseif sel.teamLimited and teamHasBought(sel) then
+				result = false
+			elseif sel.globalLimited and globalHasBought(sel) then
+				result = false
+			elseif sel.minPlayers and #player.GetAll() < sel.minPlayers then
+				result = false
+			elseif sel.notBuyable then
+				return false
+			end
+		else
+			if sel.limited and LocalPlayer():HasBought(tostring(sel.id)) then
+				result = false
+			end
+		end
+		return result
+	else
+		local tbl = {}
 
-		return credits > 0, GetPTranslation("equip_cost", {num = credits})
-	end
+		tbl.credits = vgui.Create("DLabel", parent)
+		tbl.credits:SetTooltip(GetTranslation("equip_help_cost"))
+		tbl.credits:SetPos(x, y)
 
-	tbl.owned = vgui.Create("DLabel", parent)
-	tbl.owned:SetTooltip(GetTranslation("equip_help_carry"))
-	tbl.owned:CopyPos(tbl.credits)
-	tbl.owned:MoveBelow(tbl.credits, y)
-
-	tbl.owned.Check = function(s, sel)
-		local Weapons = {}
-		local slot = "-"
-
-		for i in pairs(LocalPlayer():GetWeapons()) do
-			Weapons[i] = SafeTranslate(LocalPlayer():GetWeapons()[i]:GetPrintName())
+		tbl.credits.Check = function(s, sel)
+			local credits = LocalPlayer():GetCredits()
+			if TTT2 then
+				return credits >= sel.credits, "You have "..credits.."/"..sel.credits.." credit(s) remaining."
+			else
+				return credits > 0, GetPTranslation("equip_cost", {num = credits})
+			end
 		end
 
-		for i in pairs(Weapons) do
-			for i2 in pairs(EquipmentAll) do
-				if SafeTranslate(EquipmentAll[i2]["name"]) == Weapons[i] and EquipmentAll[i2]["kind"] == sel.kind then
-					slot = EquipmentAll[i2]["slot"]
+		tbl.owned = vgui.Create("DLabel", parent)
+		tbl.owned:SetTooltip(GetTranslation("equip_help_carry"))
+		tbl.owned:CopyPos(tbl.credits)
+		tbl.owned:MoveBelow(tbl.credits, y)
+
+		tbl.owned.Check = function(s, sel)
+			local Weapons = {}
+			local slot = "-"
+
+			for i in pairs(LocalPlayer():GetWeapons()) do
+				Weapons[i] = SafeTranslate(LocalPlayer():GetWeapons()[i]:GetPrintName())
+			end
+
+			for i in pairs(Weapons) do
+				for i2 in pairs(EquipmentAll) do
+					if SafeTranslate(EquipmentAll[i2]["name"]) == Weapons[i] and EquipmentAll[i2]["kind"] == sel.kind then
+						slot = EquipmentAll[i2]["slot"]
+					end
+				end
+			end
+
+			if ItemIsWeapon(sel) and (not CanCarryWeapon(sel)) then
+				return false, GetPTranslation("equip_carry_slot", {slot = sel.kind}) .. " (Visual " .. slot .. ")"
+			elseif (not ItemIsWeapon(sel)) and LocalPlayer():HasEquipmentItem(sel.id) then
+				return false, GetTranslation("equip_carry_own")
+			else
+				return true, GetTranslation("equip_carry")
+			end
+		end
+
+		tbl.bought = vgui.Create("DLabel", parent)
+		tbl.bought:SetTooltip(GetTranslation("equip_help_stock"))
+		tbl.bought:CopyPos(tbl.owned)
+		tbl.bought:MoveBelow(tbl.owned, y)
+		if TTT2 then
+			tbl.bought.Check = function(s, sel)
+				if sel.limited and LocalPlayer():HasBought(tostring(sel.id)) then
+					return false, "This item is not in stock. It is limited per person."
+				elseif sel.teamLimited and teamHasBought(sel) then
+					return false, "This item is not in stock. It is limited per team."
+				elseif sel.globalLimited and globalHasBought(sel) then
+					return false, "This item is not in stock. It is global limited."
+				elseif sel.minPlayers and #player.GetAll() < sel.minPlayers then
+					return false, "This item is not in stock. There are only "..#player.GetAll().."/"..sel.minPlayers.." Players."
+				elseif sel.notBuyable then
+					return false, "This item is not in stock. It is marked as not buyable."
+				else
+					return true, GetTranslation("equip_stock_ok")
+				end
+			end
+		else
+			tbl.bought.Check = function(s, sel)
+				if sel.limited and LocalPlayer():HasBought(tostring(sel.id)) then
+					return false, GetTranslation("equip_stock_deny")
+				else
+					return true, GetTranslation("equip_stock_ok")
 				end
 			end
 		end
 
-		if ItemIsWeapon(sel) and (not CanCarryWeapon(sel)) then
-			return false, GetPTranslation("equip_carry_slot", {slot = sel.kind}) .. " (Visual " .. slot .. ")"
-		elseif (not ItemIsWeapon(sel)) and LocalPlayer():HasEquipmentItem(sel.id) then
-			return false, GetTranslation("equip_carry_own")
-		else
-			return true, GetTranslation("equip_carry")
+		for _, pnl in pairs(tbl) do
+			pnl:SetFont("TabLarge")
 		end
 
-		-- TODO add MinPlayers + Limit + Price indicator
-	end
+		return function(selected)
+			local allow = true
 
-	tbl.bought = vgui.Create("DLabel", parent)
-	tbl.bought:SetTooltip(GetTranslation("equip_help_stock"))
-	tbl.bought:CopyPos(tbl.owned)
-	tbl.bought:MoveBelow(tbl.owned, y)
+			for k, pnl in pairs(tbl) do
+				local result, text = pnl:Check(selected)
 
-	tbl.bought.Check = function(s, sel)
-		if sel.limited and LocalPlayer():HasBought(tostring(sel.id)) then
-			return false, GetTranslation("equip_stock_deny")
-		else
-			return true, GetTranslation("equip_stock_ok")
+				pnl:SetTextColor(result and StringToColor(color_good:GetString()) or StringToColor(color_bad:GetString()))
+				pnl:SetText(text)
+				pnl:SizeToContents()
+
+				allow = allow and result
+			end
+
+			return allow
 		end
-	end
-
-	for _, pnl in pairs(tbl) do
-		pnl:SetFont("TabLarge")
-	end
-
-	return function(selected)
-		local allow = true
-
-		for k, pnl in pairs(tbl) do
-			local result, text = pnl:Check(selected)
-
-			pnl:SetTextColor(result and StringToColor(color_good:GetString()) or StringToColor(color_bad:GetString()))
-			pnl:SetText(text)
-			pnl:SizeToContents()
-
-			allow = allow and result
-		end
-
-		return allow
 	end
 end
 
@@ -920,7 +992,7 @@ local function TraitorMenuPopup()
 	end
 
 	local credits = ply:GetCredits()
-	local can_order = credits > 0
+	local can_order = false -- may not work
 	local IconSize = math.min(math.max(math.floor(IconSizeRaw:GetFloat()), 16), 1024)
 	local i = 1
 
@@ -1127,7 +1199,7 @@ local function TraitorMenuPopup()
 			ic:SetTooltip(tip)
 
 			-- If we cannot order this item, darken it
-			can_order = credits > 0
+			can_order = PreqLabels(false, item)
 
 			if ((not can_order) or
 				-- already owned
@@ -1206,7 +1278,7 @@ local function TraitorMenuPopup()
 	-- Search Bar
 	local TextEntry = vgui.Create("DTextEntry", dinfobg)
 	TextEntry:SetPos(0, 0)
-	TextEntry:SetSize(191, 25)
+	TextEntry:SetSize(301, 25)
 	TextEntry:SetText("Search")
 	TextEntry:SetTooltip("Searches items")
 
@@ -1216,11 +1288,16 @@ local function TraitorMenuPopup()
 	end
 
 	TextEntry.OnGetFocus = function()
-		TextEntry:SetText("")
+		inputEnabled = true
+		if TextEntry:GetText() == "Search" then
+			SearchText = ""
+			TextEntry:SetText("")
+		end
+		dframe:SetKeyboardInputEnabled(true)
 	end
 
 	local XButton = vgui.Create("DButton", dinfobg) -- Button at search bar
-	XButton:SetPos(192, 0)
+	XButton:SetPos(302, 0)
 	XButton:SetSize(19, 25)
 	XButton:SetText("X")
 	XButton:SetTooltip("Deletes the content of the search bar")
@@ -1286,33 +1363,6 @@ local function TraitorMenuPopup()
 
 	dcancel.DoClick = function()
 		dframe:Close()
-	end
-
-	local dSearchActive = vgui.Create("DButton", dinfobg) -- keybord on
-	dSearchActive:SetPos(222, 0)
-	dSearchActive:SetSize(bw, bh)
-
-	local inputEnabled = false
-	dSearchActive:SetText("Keyboard on")
-	dSearchActive:SetTooltip("Toggles the keyboard between EQMenu and Gameplay")
-
-	dSearchActive.DoClick = function ()
-		if inputEnabled then
-			inputEnabled = false
-			SearchText = ""
-
-			dlistwriting()
-
-			TextEntry:SetText("Search")
-			dSearchActive:SetText("Keyboard on")
-			dframe:SetKeyboardInputEnabled(false)
-		else
-			inputEnabled = true
-
-			dframe:SetKeyboardInputEnabled(true)
-			TextEntry:RequestFocus()
-			dSearchActive:SetText("Keyboard off")
-		end
 	end
 
 	local dSortByName = vgui.Create("DButton", dinfobg) -- Sortation Buttons
@@ -1437,8 +1487,11 @@ local function TraitorMenuPopup()
 				if dfields[k] then -- fixed description
 					if k == "desc" then
 						local Result = FixedDescription(v, new.item)
-
-						dfields[k]:SetText(Result .. "\n")--"\n" for better design in scroll panel
+						if TTT2 and TTT2Info:GetBool() then
+							dfields[k]:SetText(Result.."\n\nTTT2 INFO: \nMinimum Players: "..tostring(new.item.minPlayers).."\nPrice: "..tostring(new.item.credits).." credits\nNo Random: "..tostring(new.item.NoRandom).."\nGlobal limited: "..tostring(new.item.globalLimited).."\nPersonal limited: "..tostring(new.item.limited).."\nTeam limited: "..tostring(new.item.teamLimited).."\nnot Buyable: "..tostring(new.item.notBuyable).."\n")--"\n" for better design in scroll panel
+						else
+							dfields[k]:SetText(Result.."\n")--"\n" for better design in scroll panel
+						end
 					else
 						dfields[k]:SetText(SafeTranslate(v))
 					end
@@ -1512,6 +1565,12 @@ local function TraitorMenuPopup()
 	eqframe = dframe
 end
 concommand.Add("ttt_cl_traitorpopup", TraitorMenuPopup)
+
+hook.Add("OnTextEntryLoseFocus", "OnTextEntryLoseFocus4TTTBetterTraitorMenu", function (panel) -- replace keyboard Button
+	if eqframe and IsValid(eqframe) and panel:HasParent(eqframe) then
+		eqframe:SetKeyboardInputEnabled(false)
+	end
+end)
 
 local function ForceCloseTraitorMenu(ply, cmd, args)
 	if IsValid(eqframe) then
@@ -1724,6 +1783,9 @@ hook.Add("TTTSettingsTabs", "TTTSettingsTab4TTTBetterTraitorMenu", function(dtab
 	General_Settings:CheckBox("Show fixed description button", "ttt_bettermenu_fixeddesc")
 	General_Settings:CheckBox("Enables or disables if autobuy should be runed on the beginning of every round.", "ttt_bettermenu_autobuy_roundbegin")
 	General_Settings:CheckBox("Print chat messages when the autobuy is used (works after map change/restart)", "ttt_bettermenu_autobuymessage")
+	if TTT2 then
+		General_Settings:CheckBox("Show TTT2 advanced item description", "ttt_bettermenu_TTT2_desc_item_info")
+	end
 
 	local Icon_Settings = vgui.Create("DForm")
 	Icon_Settings:SetSpacing(10)
@@ -1856,729 +1918,3 @@ hook.Add("TTTSettingsTabs", "TTTSettingsTab4TTTBetterTraitorMenu", function(dtab
 	Version_text:SetColor(Color(100, 100, 100))
 	settings_panel:AddItem(Version_text)
 end)
-
--- weaponshop
---[[
-if TTT2 then
-	function GetEquipmentForRoleAll()
-		-- need to build equipment cache?
-		if not Equipmentnew then
-			-- start with all the non-weapon goodies
-			local tbl = ALL_ITEMS
-			local eject = {
-				"weapon_fists",
-				"weapon_ttt_unarmed",
-				"weapon_zm_carry",
-				"bobs_blacklisted"
-			}
-
-			hook.Run("TTT2ModifyWepShopIgnoreWeps", eject) -- possibility to modify from externally
-
-			-- find buyable weapons to load info from
-			for _, v in ipairs(weapons.GetList()) do
-				if v and not v.Doublicated and not string.match(v.ClassName, "base") and not string.match(v.ClassName, "event") and not table.HasValue(eject, v.ClassName) then
-					local data = v.EquipMenuData or {}
-					local base = {
-						id = v.ClassName,
-						name = v.ClassName or "Unnamed",
-						PrintName = data.name or data.PrintName or v.PrintName or v.ClassName or "Unnamed",
-						limited = v.LimitedStock,
-						kind = v.Kind or WEAPON_NONE,
-						slot = (v.Slot or 0) + 1,
-						material = v.Icon or "vgui/ttt/icon_id",
-						-- the below should be specified in EquipMenuData, in which case
-						-- these values are overwritten
-						type = "Type not specified",
-						model = "models/weapons/w_bugbait.mdl",
-						desc = "No description specified."
-					}
-
-					-- Force material to nil so that model key is used when we are
-					-- explicitly told to do so (ie. material is false rather than nil).
-					if data.modelicon then
-						base.material = nil
-					end
-
-					table.Merge(base, data)
-					table.insert(tbl, base)
-				end
-			end
-
-			Equipmentnew = tbl
-		end
-
-		return Equipmentnew
-	end
-
-	local function WeaposhopPopup()
-		-- set and reset variables
-		local EquipmentT = GetEquipmentForRole(ROLE_TRAITOR)
-		local EquipmentD = GetEquipmentForRole(ROLE_DETECTIVE)
-		local state = false
-		local mode = false
-
-		EquipmentAll = nil
-		SearchText = false
-		FirstSort = nil
-		LastSearched = false
-		LastSortation = false
-		LastSelected = false
-		Selected = nil
-
-		local sr = GetShopRoles()[1]
-
-		-- refresh Variables
-		StandartSort = math.min(math.max(math.floor(StandartSortRaw:GetFloat()), 1), 3)
-		FirstSort = nil
-
-		if StandartSort == 1 then
-			FirstSort = "Default"
-		elseif StandartSort == 2 then
-			FirstSort = "Name"
-		else
-			FirstSort = "Slot"
-		end
-
-		SearchText = false
-		EquipmentAll = GetEquipmentForRoleAll()
-
-		local IconSize = math.min(math.max(math.floor(IconSizeRaw:GetFloat()), 16), 1024)
-		local i = 1
-
-		while i * (IconSize + 2) < 252 do -- calculate min rows
-			i = i + 1
-		end
-
-		local MinRows = i
-		local Rows = math.min(math.max(math.floor(RowsRaw:GetFloat()), MinRows), 100)
-		local Colums = math.min(math.max(math.floor(ColumsRaw:GetFloat()), 1), 100)
-		local dlistw = Colums * (IconSize + 2) + 18
-
-		-- Close any existing traitor menu
-		if weaponshopframe and IsValid(weaponshopframe) then
-			weaponshopframe:Close()
-		end
-
-		-- create frame
-		local dframe = vgui.Create("DFrame")
-		local w, h = 570 - 216 + dlistw, 79 + Rows * (IconSize + 2)
-
-		dframe:SetSize(w, h)
-		dframe:Center()
-		dframe:SetTitle("Weaponshop")
-		dframe:SetVisible(true)
-		dframe:ShowCloseButton(true)
-		dframe:SetMouseInputEnabled(true)
-		dframe:SetDeleteOnClose(true)
-
-		if StringToColor(WindowColor:GetString()) then
-			dframe.Paint = function()
-				draw.RoundedBox(4, 0, 0, dframe:GetWide(), dframe:GetTall(), StringToColor(WindowColor:GetString()))
-			end
-		end
-
-		local m = 5
-
-		-- create sheet
-		local dsheet = vgui.Create("DPropertySheet", dframe)
-
-		-- Add a callback when switching tabs
-		local oldfunc = dsheet.SetActiveTab
-
-		dsheet.SetActiveTab = function(self, new)
-			if self.m_pActiveTab ~= new and self.OnTabChanged then
-				self:OnTabChanged(self.m_pActiveTab, new)
-			end
-
-			oldfunc(self, new)
-		end
-
-		dsheet:SetPos(0, 0)
-		dsheet:StretchToParent(m, m + 25, m, m)
-
-		if StringToColor(TabColor:GetString()) then
-			dsheet.Paint = function(self, w2, h2)
-				draw.RoundedBox(5, 0, 21, w2, h2 - 21, StringToColor(TabColor:GetString()))
-			end
-		end
-
-		local padding = dsheet:GetPadding()
-
-		-- Crate panel
-		local dequip = vgui.Create("DPanel", dsheet)
-		dequip:SetPaintBackground(false)
-		dequip:StretchToParent(padding, padding, padding, padding)
-
-		--- Construct icon listing
-		-- Equip List
-		local dlist = vgui.Create("EquipSelect", dequip)
-		dlist:SetPos(0, 0)
-		dlist:SetSize(dlistw, h - 75)
-		dlist:EnableVerticalScrollbar(true)
-		dlist:EnableHorizontal(true)
-		dlist:SetPadding(4)
-
-		dlist.selectedRole = ROLE_TRAITOR
-
-		local function dlistwriting(Sortation, search, sel)
-			if dlist then
-				dlist:Clear()
-			end
-
-			local items = Select(Search(Sortate(EquipmentAll, Sortation), search), sel)
-
-			for k, item in pairs(items) do -- do for every item
-				local ic = nil
-
-				for _, k2 in pairs(EquipmentT) do
-					if k2.id == item.id then
-						item.origin = "T"
-					end
-				end
-
-				for _, k2 in pairs(EquipmentD) do
-					if k2.id == item.id then
-						if item.origin == "T" then
-							item.origin = "B"
-						else
-							item.origin = "D"
-						end
-					end
-				end
-
-				-- Create icon panel with markers
-				if item.material then
-					if item.custom and CustomOn:GetBool() then
-						-- Custom marker icon
-						local marker = vgui.Create("DImage")
-						marker:SetImage("vgui/ttt/custom_marker")
-
-						marker.PerformLayout = function(s)
-							s:AlignBottom(2)
-							s:AlignRight(2)
-							s:SetSize(16, 16)
-						end
-
-						marker:SetTooltip(GetTranslation("equip_custom"))
-
-						ic:AddLayer(marker)
-						ic:EnableMousePassthrough(marker)
-					elseif not(SlotOn:GetBool() and ItemIsWeapon(item)) then
-						ic = vgui.Create("SimpleClickIcon", dlist)
-					else
-						ic = vgui.Create("LayeredClickIcon", dlist)
-					end
-
-					if ItemIsWeapon(item) and SlotOn:GetBool() then
-						-- Slot marker icon
-						local slot = vgui.Create("SimpleIconLabelled")
-						slot:SetIcon("vgui/ttt/slotcap")
-
-						local color = Color(60, 60, 60)
-
-						if item.origin == "T" then
-							color = color_slot[ROLE_TRAITOR]
-						elseif item.origin == "D" then
-							color = color_slot[ROLE_DETECTIVE]
-						elseif item.origin == "B" then
-							color = Color(color_slot[ROLE_TRAITOR].r + color_slot[ROLE_DETECTIVE].r, color_slot[ROLE_TRAITOR].g + color_slot[ROLE_DETECTIVE].g, color_slot[ROLE_TRAITOR].b + color_slot[ROLE_DETECTIVE].b, 255)
-						end
-
-						slot:SetIconColor(color or Color(0, 0, 255))
-						slot:SetIconSize(16)
-						slot:SetTooltip("Slot: " .. item.kind .. " Visual slot: " .. item.slot)
-						slot:SetIconText(item.slot)
-						slot:SetIconProperties(StringToColor(SlotTextColor:GetString()), "DefaultBold", {opacity = 220, offset = 1}, {10, 8})
-
-						ic:AddLayer(slot)
-						ic:EnableMousePassthrough(slot)
-					end
-
-					ic:SetIconSize(IconSize)
-					ic:SetIcon(item.material)
-				elseif item.model then
-					ic = vgui.Create("SpawnIcon", dlist)
-					ic:SetModel(item.model)
-				elseif item then
-					ErrorNoHalt("Equipment item does not have model or material specified: " .. tostring(item) .. "\n")
-				end
-
-				ic.item = item
-
-				if not item.kind then
-					item.kind = 0
-				end
-
-				local tip = SafeTranslate(item.name) .. " (" .. SafeTranslate(item.type) .. ")"
-
-				ic:SetTooltip(tip)
-
-				-- If we cannot order this item, darken it
-				if false then
-					ic:SetIconColor(StringToColor(color_darkened:GetString()))
-				end
-
-				-- click on item
-				ic.OnClick = function()
-					if mode.status then --
-						if not dlist.selectedRole or not state or not mode.status then return end
-
-						local is_item = tonumber(ic.item.id)
-						if is_item then
-							EquipmentItems[dlist.selectedRole] = EquipmentItems[dlist.selectedRole] or {}
-
-							if EquipmentTableHasValue(EquipmentItems[dlist.selectedRole], ic.item) then
-								for k2, eq in pairs(EquipmentItems[dlist.selectedRole]) do
-									if eq.id == ic.item.id then
-										table.remove(EquipmentItems[dlist.selectedRole], k2)
-
-										break
-									end
-								end
-
-								-- remove
-								net.Start("shop")
-								net.WriteBool(false)
-								net.WriteUInt(dlist.selectedRole - 1, ROLE_BITS)
-								net.WriteString(ic.item.name)
-								net.SendToServer()
-							else
-								table.insert(EquipmentItems[dlist.selectedRole], ic.item)
-
-								-- add
-								net.Start("shop")
-								net.WriteBool(true)
-								net.WriteUInt(dlist.selectedRole - 1, ROLE_BITS)
-								net.WriteString(ic.item.name)
-								net.SendToServer()
-							end
-						else
-							local wepTbl = weapons.GetStored(ic.item.id)
-							if wepTbl then
-								wepTbl.CanBuy = wepTbl.CanBuy or {}
-
-								if table.HasValue(wepTbl.CanBuy, dlist.selectedRole) then
-									for k2, v in ipairs(wepTbl.CanBuy) do
-										if v == dlist.selectedRole then
-											table.remove(wepTbl.CanBuy, k2)
-
-											break
-										end
-									end
-
-									-- remove
-									net.Start("shop")
-									net.WriteBool(false)
-									net.WriteUInt(dlist.selectedRole - 1, ROLE_BITS)
-									net.WriteString(ic.item.id)
-									net.SendToServer()
-								else
-									table.insert(wepTbl.CanBuy, dlist.selectedRole)
-
-									-- add
-									net.Start("shop")
-									net.WriteBool(true)
-									net.WriteUInt(dlist.selectedRole - 1, ROLE_BITS)
-									net.WriteString(ic.item.id)
-									net.SendToServer()
-								end
-							end
-						end
-					end
-
-					dlist:SelectPanel(ic)
-
-					timer.Simple(0.1, function()
-						dlist.OnActivePanelChanged(_, _, ic)
-					end)
-				end
-
-				dlist:AddPanel(ic)
-			end
-
-			-- couple panelselect with info
-			if to_select or dlist:GetItems()[1] then
-				dlist:SelectPanel(to_select or dlist:GetItems()[1])
-			else
-				dlist.OnActivePanelChanged()
-			end
-		end -- end dlistwriting function
-
-		dlistwriting(FirstSort)
-
-		-- positioning vars !rework positioning in general!
-		local bw, bh = 100, 25
-		local verschiebung = 30 * 2
-		local dih = h - bh - m * 5
-		local diw = w - dlistw - m * 6 - 2
-
-		local dinfobg = vgui.Create("DPanel", dequip)
-		dinfobg:SetPaintBackground(false)
-		dinfobg:SetSize(diw, dih)
-		dinfobg:SetPos(dlistw + m, 0)
-
-		local dinfo = vgui.Create("ColoredBox", dinfobg)
-		dinfo:SetColor(StringToColor(BoxColor:GetString()))-- Box color
-		dinfo:SetPos(0, verschiebung)
-		dinfo:SetSize(diw, dih - 250)
-
-		local dinfolist = vgui.Create("DScrollPanel", dinfo)
-		dinfolist:StretchToParent(0, 0, 0, 0)
-
-		local dhelp = vgui.Create("ColoredBox", dinfobg)
-		dhelp:SetColor(StringToColor(BoxColor:GetString()))-- box color
-		dhelp:StretchToParent(0, verschiebung, 0, dih - 100 - verschiebung)
-		dhelp:MoveBelow(dinfo, m)
-		dhelp:SizeToContents()
-
-		-- Search Bar
-		local TextEntry = vgui.Create("DTextEntry", dinfobg)
-		TextEntry:SetPos(0, 0)
-		TextEntry:SetSize(191, 25)
-		TextEntry:SetText("Search")
-		TextEntry:SetTooltip("Searches items")
-
-		TextEntry.OnTextChanged = function(self)
-			SearchText = self:GetValue()
-
-			dlistwriting(nil, SearchText)
-		end
-
-		TextEntry.OnGetFocus = function()
-			TextEntry:SetText("")
-		end
-
-		local XButton = vgui.Create("DButton", dinfobg) -- Button at search bar
-		XButton:SetPos(192, 0)
-		XButton:SetSize(19, 25)
-		XButton:SetText("X")
-		XButton:SetTooltip("Deletes the content of the search bar")
-
-		XButton.DoClick = function()
-			TextEntry:SetText("Search")
-			SearchText = ""
-
-			dlistwriting(nil, SearchText)
-		end
-
-		-- Buttons
-		mode = vgui.Create("DButton", dframe)
-		mode:SetPos(w - 14 - bw, h - 2 * bh - 21)
-		mode:SetSize(100, 25)
-		mode:SetText("Reading mode")
-
-		mode.status = true
-
-		mode.DoClick = function()
-			if mode.status == true then
-				mode.status = false
-
-				mode:SetText("Writing mode")
-			else
-				mode.status = true
-
-				mode:SetText("Reading mode")
-			end
-		end
-
-		local dcancel = vgui.Create("DButton", dframe) -- Cancel button
-		dcancel:SetPos(w - 14 - bw, h - bh - 16)
-		dcancel:SetSize(bw, bh)
-		dcancel:SetDisabled(false)
-		dcancel:SetTooltip("Closes this window")
-		dcancel:SetText(GetTranslation("close"))
-
-		dcancel.DoClick = function()
-			dframe:Close()
-		end
-
-		local dSortByName = vgui.Create("DButton", dinfobg) -- Sortation Buttons
-		dSortByName:SetTooltip("Sorts the items by Name")
-		dSortByName:SetPos(111, 30)
-		dSortByName:SetSize(bw, bh)
-		dSortByName:SetText("Sort by Name")
-
-		dSortByName.DoClick = function () dlistwriting("Name") end
-
-		local dSortByID = vgui.Create("DButton", dinfobg)
-		dSortByID:SetTooltip("Sorts the items by ID")
-		dSortByID:SetPos(0, 30)
-		dSortByID:SetSize(bw, bh)
-		dSortByID:SetText("Sort by Default")
-
-		dSortByID.DoClick = function()
-			dlistwriting("Default")
-		end
-
-		local dSortBySlot = vgui.Create("DButton", dinfobg)
-		dSortBySlot:SetTooltip("Sorts the items by Slot")
-		dSortBySlot:SetPos(222, 30)
-		dSortBySlot:SetSize(bw, bh)
-		dSortBySlot:SetText("Sort by Slot")
-
-		dSortBySlot.DoClick = function()
-			dlistwriting("Slot")
-		end
-
-		local dSortByOrigin = vgui.Create("DButton", dinfobg)
-		dSortByOrigin:SetTooltip("Sorts the items by Origin")
-		dSortByOrigin:SetPos(222, 0)
-		dSortByOrigin:SetSize(bw, bh)
-		dSortByOrigin:SetText("Sort by Origin")
-
-		dSortByOrigin.DoClick = function()
-			dlistwriting("Origin")
-		end
-
-		-- add sheets
-		-- Shop
-		dsheet:AddSheet("Weaponshop", dequip, "icon16/bomb.png", false, false, "Edit shops")
-
-		dlist.OnActivePanelChanged = function(self, _, new)
-
-			--dinfolist writing
-			dinfolist:Clear()
-
-			local dfields = {}
-
-			for _, k in pairs({"name", "type", "desc"}) do
-				dfields[k] = vgui.Create("DLabel")
-				dfields[k]:SetTooltip(GetTranslation("equip_spec_" .. k))
-				dfields[k]:SetPos(m * 3, m * 2)
-
-				dinfolist:AddItem(dfields[k])
-			end
-
-			dfields.name:SetFont("TabLarge")
-			dfields.name:SetColor(NameTextColor)
-
-			dfields.type:SetColor(StringToColor(TypeTextColor:GetString()))
-			dfields.type:SetFont("DermaDefault")
-			dfields.type:MoveBelow(dfields.name)
-
-			dfields.desc:SetContentAlignment(7)
-			dfields.desc:MoveBelow(dfields.type, 1)
-
-			if FixedDescBool:GetBool() and new then
-				dfields["Button"] = vgui.Create("DButton") -- Button in list
-
-				if fixedDesc[new.item.id] then
-					dfields.desc:SetFont("DebugFixed")-- monospaced font
-					dfields["Button"]:SetText("Default description")
-					dfields["Button"]:SetTooltip("Shows the default description (looks a bit better)")
-				else
-					dfields.desc:SetFont("DermaDefaultBold")
-					dfields["Button"]:SetText("Fixed description")
-					dfields["Button"]:SetTooltip("Shows the fixed desfixed description (to avoid too long rows)")
-				end
-
-				dfields.desc:SetColor(StringToColor(DescriptionTextColor:GetString()))
-				dfields["Button"]:SetSize(bw, bh)
-				dfields["Button"]:SetPos(dinfolist:GetSize() - bw - m * 3, m * 2)
-
-				dinfolist:AddItem(dfields["Button"])
-
-				dfields["Button"].DoClick = function()
-					if fixedDesc[new.item.id] then
-						fixedDesc[new.item.id] = false
-					else
-						fixedDesc[new.item.id] = true
-					end
-
-					dlist:SelectPanel(new) --refresh
-				end
-			end
-
-			if new then
-				for k, v in pairs(new.item) do
-					if dfields[k] then -- fixed description
-						if k == "desc" then
-							local Result = FixedDescription(v, new.item)
-							dfields[k]:SetText(Result .. "\n")--"\n" for better design in scroll panel
-						else
-							dfields[k]:SetText(SafeTranslate(v))
-						end
-
-						dfields[k]:SizeToContents()
-					end
-				end
-			else -- if no item selected
-				dfields["name"]:SetText("none")
-				dfields["type"]:SetText("none")
-				dfields["desc"]:SetText("none\n")
-
-				dfields["name"]:SizeToContents()
-				dfields["type"]:SizeToContents()
-				dfields["desc"]:SizeToContents()
-			end
-
-			-- 2nd field
-			dhelp:Clear()
-
-			local x = m * 3
-			local y = m * 4.5
-			local dlab = vgui.Create("DLabel", dhelp)
-			local CanBeBought = false
-
-			for k, v in pairs(TTT2GetEquipmentForRole(dlist.selectedRole)) do
-				if v.id == new.item.id then
-					CanBeBought = true
-				end
-			end
-
-			if CanBeBought then
-				dlab:SetTextColor(StringToColor(color_good:GetString()))
-				dlab:SetText("This Item can be bought by the selected role.")
-			else
-				dlab:SetTextColor(StringToColor(color_bad:GetString()))
-				dlab:SetText("This Item can not be bought by the selected role.")
-			end
-
-			dlab:SetPos(x, y)
-			dlab:SetFont("TabLarge")
-			dlab:SetTooltip("Shows if item can be bought by sel. role.")
-			dlab:SizeToContents()
-
-			local dlab2 = vgui.Create("DLabel", dhelp)
-			dlab2:SetTooltip("Shows origin of the item.")
-			dlab2:CopyPos(dlab)
-			dlab2:MoveBelow(dlab, y)
-			dlab2:SetFont("TabLarge")
-			dlab2:SetText("The origin of this item is Unknown.")
-
-			if new.item.origin == "T" then
-				dlab2:SetColor(color_slot[ROLE_TRAITOR])
-				dlab2:SetText("The origin of this item is Traitor.")
-			elseif new.item.origin == "D" then
-				dlab2:SetColor(color_slot[ROLE_DETECTIVE])
-				dlab2:SetText("The origin of this item is Detective.")
-			elseif new.item.origin == "B" then
-				dlab2:SetColor(Color(color_slot[ROLE_TRAITOR].r + color_slot[ROLE_DETECTIVE].r, color_slot[ROLE_TRAITOR].g + color_slot[ROLE_DETECTIVE].g, color_slot[ROLE_TRAITOR].b + color_slot[ROLE_DETECTIVE].b, 255))
-				dlab2:SetText("The origin of this item is Traitor & Detective.")
-			end
-
-			dlab2:SizeToContents()
-		end
-
-		-- select first
-		if not to_select then
-			dlist:SelectPanel(dlist:GetItems()[1])
-		end
-
-		local menu = vgui.Create("DComboBox")
-		menu:SetParent(dequip)
-		menu:SetPos(dlistw + 5, h - 75 - 54)
-		menu:SetSize(210, 25)
-		menu:SetValue(sr.name)
-
-		dlist.selectedRole = ROLE_TRAITOR
-
-		for _, v in pairs(GetShopRoles()) do
-			menu:AddChoice(v.name, v.index)
-		end
-
-		local fbmenu = vgui.Create("DComboBox")
-		fbmenu:SetParent(dequip)
-		fbmenu:SetPos(dlistw + 5, h - 75 - 24)
-		fbmenu:SetSize(210, 25)
-
-		function fbmenu:RefreshChoices()
-			-- clear old data
-			self:Clear()
-
-			local rd = GetRoleByIndex(dlist.selectedRole)
-			local fallback = GetConVar("ttt_" .. rd.abbr .. "_shop_fallback"):GetString()
-			local fb = GetRoleByName(fallback)
-
-			-- update state
-			if fallback == SHOP_DISABLED or fallback == SHOP_UNSET and rd.fallbackTable then
-				state = false
-			else
-				state = true
-			end
-
-			-- add linked or own shop choice
-			for _, v in pairs(GetShopRoles()) do
-				self:AddChoice(dlist.selectedRole == v.index and "Use own shop" or ("Link with " .. v.name), {name = v.name, data = v.name})
-			end
-
-			-- add default choice
-			local tmpRd = GetRoleByIndex(dlist.selectedRole)
-			if tmpRd.fallbackTable then
-				self:AddChoice("Default Role Equipment", {name = tmpRd.name, data = SHOP_UNSET})
-			end
-
-			self:AddChoice("Disable shop", {name = tmpRd.name, data = SHOP_DISABLED})
-
-			-- set default value
-			if fallback == SHOP_DISABLED then
-				self:SetValue("Disabled shop")
-			elseif not state then
-				self:SetValue("Default Role Equipment")
-			else
-				self:SetValue(dlist.selectedRole == fb.index and "Using own shop" or ("Linked with " .. fb.name))
-			end
-
-			-- generally update
-			dlist:SelectPanel(dlist:GetItems()[1])
-			dlist.OnActivePanelChanged(_, _, dlist:GetItems()[1])
-
-			-- disable if not needed
-			if not state or fb.index ~= dlist.selectedRole then
-				for _, v in pairs(dlist:GetItems()) do
-					if v.Toggle then
-						v:Toggle(false)
-					end
-				end
-			end
-		end
-
-		fbmenu:RefreshChoices()
-
-		function fbmenu:OnSelect(_, _, data)
-			local rd = GetRoleByIndex(dlist.selectedRole)
-			local oldFallback = GetConVar("ttt_" .. rd.abbr .. "_shop_fallback"):GetString()
-
-			if fallback ~= oldFallback then
-				net.Start("shopFallback")
-				net.WriteUInt(dlist.selectedRole - 1, ROLE_BITS)
-				net.WriteString(data.data)
-				net.SendToServer()
-			end
-
-			if data.data == SHOP_DISABLED or data.data == SHOP_UNSET or data.data ~= GetRoleByIndex(dlist.selectedRole).name then
-				state = false
-
-				for _, v in pairs(dlist:GetItems()) do
-					if v.Toggle then
-						v:Toggle(false)
-					end
-				end
-			else
-				state = true
-
-				dlist:SelectPanel(dlist:GetItems()[1])
-				dlist.OnActivePanelChanged(_, _, dlist:GetItems()[1])
-			end
-		end
-
-		function menu:OnSelect(_, _, data)
-			dlist.selectedRole = data
-
-			fbmenu:RefreshChoices()
-		end
-
-
-		-- update some basic info, may have changed in another tab
-		-- specifically the number of credits in the preq list
-		dsheet.OnTabChanged = function(s, old, new)
-			if not IsValid(new) then return end
-		end
-
-		dframe:MakePopup()
-		dframe:SetKeyboardInputEnabled(true)
-		weaponshopframe = dframe
-	end
-	net.Receive("bettermenu_weaponshop", WeaposhopPopup)
-end
-]]
