@@ -202,138 +202,140 @@ local SafeTranslate = LANG.TryTranslation
 -- equip_items_shd.lua
 
 Equipment = Equipment or {}
-
-function GetEquipmentForRole(role)
-	-- need to build equipment cache?
-	if next(Equipment) == nil then --if not Equipment then
-		-- start with all the non-weapon goodies
-		if not TTTRoles then
-			-- Default Role Table from gamefreak (for compatibility)
-			TTTRoles = TTTRoles or {
-				[ROLE_INNOCENT] = {
-					ID = ROLE_INNOCENT,
-					Rolename = "Innocent",
-					String = "innocent",
-					IsGood = true,
-					IsEvil = false,
-					IsSpecial = false,
-					Creditsforkills = false,
-					ShortString = "inno",
-					Short = "i",
-					IsDefault = true,
-					DefaultColor = Color(0, 255, 0),
-					winning_team = WIN_INNOCENT,
-					drawtargetidcircle = false,
-					AllowTeamChat = false,
-					RepeatingCredits = false,
-					CanCollectCredits = false,
-					HasShop = false
-				},
-				[ROLE_TRAITOR] = {
-					ID = ROLE_TRAITOR,
-					Rolename = "Traitor",
-					String = "traitor",
-					IsGood = false,
-					IsEvil = true,
-					IsSpecial = true,
-					Creditsforkills = true,
-					ShortString = "traitor",
-					Short = "t",
-					IsDefault = true,
-					DefaultColor = Color(255, 0, 0),
-					indicator_mat = Material("vgui/ttt/sprite_traitor"),
-					winning_team = WIN_TRAITOR,
-					drawtargetidcircle = true,
-					targetidcolor = COLOR_RED,
-					AllowTeamChat = true,
-					RepeatingCredits = true,
-					CanCollectCredits = true,
-					HasShop = true
-				},
-				[ROLE_DETECTIVE] = {
-					ID = ROLE_DETECTIVE,
-					Rolename = "Detective",
-					String = "detective",
-					IsGood = true,
-					IsEvil = false,
-					IsSpecial = true,
-					Creditsforkills = true,
-					ShortString = "det",
-					Short = "d",
-					IsDefault = true,
-					DefaultColor = Color(0, 0, 255),
-					winning_team = WIN_INNOCENT,
-					drawtargetidcircle = true,
-					targetidcolor = COLOR_BLUE,
-					AllowTeamChat = true,
-					RepeatingCredits = false,
-					CanCollectCredits = true,
-					HasShop = true
+if not TTT2 then
+	function DefaultGetEquipmentForRole(role)
+		-- need to build equipment cache?
+		if next(Equipment) == nil then --if not Equipment then
+			-- start with all the non-weapon goodies
+			if not TTTRoles then
+				-- Default Role Table from gamefreak (for compatibility)
+				TTTRoles = TTTRoles or {
+					[ROLE_INNOCENT] = {
+						ID = ROLE_INNOCENT,
+						Rolename = "Innocent",
+						String = "innocent",
+						IsGood = true,
+						IsEvil = false,
+						IsSpecial = false,
+						Creditsforkills = false,
+						ShortString = "inno",
+						Short = "i",
+						IsDefault = true,
+						DefaultColor = Color(0, 255, 0),
+						winning_team = WIN_INNOCENT,
+						drawtargetidcircle = false,
+						AllowTeamChat = false,
+						RepeatingCredits = false,
+						CanCollectCredits = false,
+						HasShop = false
+					},
+					[ROLE_TRAITOR] = {
+						ID = ROLE_TRAITOR,
+						Rolename = "Traitor",
+						String = "traitor",
+						IsGood = false,
+						IsEvil = true,
+						IsSpecial = true,
+						Creditsforkills = true,
+						ShortString = "traitor",
+						Short = "t",
+						IsDefault = true,
+						DefaultColor = Color(255, 0, 0),
+						indicator_mat = Material("vgui/ttt/sprite_traitor"),
+						winning_team = WIN_TRAITOR,
+						drawtargetidcircle = true,
+						targetidcolor = COLOR_RED,
+						AllowTeamChat = true,
+						RepeatingCredits = true,
+						CanCollectCredits = true,
+						HasShop = true
+					},
+					[ROLE_DETECTIVE] = {
+						ID = ROLE_DETECTIVE,
+						Rolename = "Detective",
+						String = "detective",
+						IsGood = true,
+						IsEvil = false,
+						IsSpecial = true,
+						Creditsforkills = true,
+						ShortString = "det",
+						Short = "d",
+						IsDefault = true,
+						DefaultColor = Color(0, 0, 255),
+						winning_team = WIN_INNOCENT,
+						drawtargetidcircle = true,
+						targetidcolor = COLOR_BLUE,
+						AllowTeamChat = true,
+						RepeatingCredits = false,
+						CanCollectCredits = true,
+						HasShop = true
+					}
 				}
-			}
-		end
-
-		local tbl = table.Copy(EquipmentItems)
-
-		for k, v in pairs(TTTRoles) do
-			if v.ShopFallBack then
-				tbl[v.ID] = table.Copy(EquipmentItems[v.ShopFallBack])
 			end
-		end
 
-		-- find buyable weapons to load info from
-		for k, v in pairs(weapons.GetList()) do
-			if v and v.CanBuy then
-				local data = v.EquipMenuData or {}
-				local base = {
-					id = WEPS.GetClass(v),
-					name = v.PrintName or "Unnamed",
-					limited = v.LimitedStock,
-					kind = v.Kind or WEAPON_NONE,
-					slot = (v.Slot or 0) + 1,
-					material = v.Icon or "vgui/ttt/icon_id",
-					-- the below should be specified in EquipMenuData, in which case
-					-- these values are overwritten
-					type = "Type not specified",
-					model = "models/weapons/w_bugbait.mdl",
-					desc = "No description specified."
-				}
+			local tbl = table.Copy(EquipmentItems)
 
-				-- Force material to nil so that model key is used when we are
-				-- explicitly told to do so (ie. material is false rather than nil).
-				if data.modelicon then
-					base.material = nil
+			for k, v in pairs(TTTRoles) do
+				if v.ShopFallBack then
+					tbl[v.ID] = table.Copy(EquipmentItems[v.ShopFallBack])
 				end
+			end
 
-				table.Merge(base, data)
+			-- find buyable weapons to load info from
+			for k, v in pairs(weapons.GetList()) do
+				if v and v.CanBuy then
+					local data = v.EquipMenuData or {}
+					local base = {
+						id = WEPS.GetClass(v),
+						name = v.PrintName or "Unnamed",
+						limited = v.LimitedStock,
+						kind = v.Kind or WEAPON_NONE,
+						slot = (v.Slot or 0) + 1,
+						material = v.Icon or "vgui/ttt/icon_id",
+						-- the below should be specified in EquipMenuData, in which case
+						-- these values are overwritten
+						type = "Type not specified",
+						model = "models/weapons/w_bugbait.mdl",
+						desc = "No description specified."
+					}
 
-				-- add this buyable weapon to all relevant equipment tables
-				for _, r in pairs(v.CanBuy) do
-					table.insert(tbl[r], base)
-					for _, v2 in pairs(TTTRoles) do
-						if v2.ShopFallBack and v2.ShopFallBack == r then
-							table.insert(tbl[v2.ID], base)
+					-- Force material to nil so that model key is used when we are
+					-- explicitly told to do so (ie. material is false rather than nil).
+					if data.modelicon then
+						base.material = nil
+					end
+
+					table.Merge(base, data)
+
+					-- add this buyable weapon to all relevant equipment tables
+					for _, r in pairs(v.CanBuy) do
+						table.insert(tbl[r], base)
+						for _, v2 in pairs(TTTRoles) do
+							if v2.ShopFallBack and v2.ShopFallBack == r then
+								table.insert(tbl[v2.ID], base)
+							end
 						end
 					end
 				end
 			end
-		end
 
-		-- mark custom items
-		for r, is in pairs(tbl) do
-			for _, i in pairs(is) do
-				if i and i.id then
-					i.custom = not table.HasValue(DefaultEquipment[r], i.id)
+			-- mark custom items
+			for r, is in pairs(tbl) do
+				for _, i in pairs(is) do
+					if i and i.id then
+						i.custom = not table.HasValue(DefaultEquipment[r], i.id)
+					end
 				end
 			end
+
+			Equipment = tbl
 		end
 
-		Equipment = tbl
+		return Equipment and Equipment[role] or {}
 	end
-
-	return Equipment and Equipment[role] or {}
 end
-
+	
+--[[ (Useless)
 function TTT2GetEquipmentForRole(role)
 	local fallbackTable = GetShopFallbackTable(role)
 	if fallbackTable then
@@ -389,6 +391,7 @@ function TTT2GetEquipmentForRole(role)
 
 	return Equipment[fallback] or {}
 end
+--]]
 
 local function teamHasBought(sel)
 	local result = false
@@ -702,9 +705,9 @@ local function DeleteMissingItems(AutoOrFav) -- Delete missing Items in saved li
 	local itemstobuy = LinesToTable(file.Read("ttt" .. string.lower(AutoOrFav) .. "scriptdata/selection" .. (TTT2 and LocalPlayer():GetSubRole() or not TTT2 and LocalPlayer():GetRole()) .. ".txt", "DATA"))
 	local itemsloaded = GetEquipmentForRole(TTT2 and LocalPlayer():GetSubRole() or not TTT2 and LocalPlayer():GetRole())
 
-	if TTT2 then
+	--[[if TTT2 then (Useless)
 		itemsloaded = TTT2GetEquipmentForRole(TTT2 and LocalPlayer():GetSubRole() or not TTT2 and LocalPlayer():GetRole())
-	end
+	end--]]
 
 	local i = 1
 	local i2 = 1
@@ -985,11 +988,11 @@ local function TraitorMenuPopup()
 		FirstSort = "Slot"
 	end
 
-	if TTT2 then
+	--[[if TTT2 then (Useless)
 		EquipmentAll = TTT2GetEquipmentForRole(LocalPlayer():GetSubRole())
-	else
+	else--]]
 		EquipmentAll = GetEquipmentForRole(LocalPlayer():GetRole())
-	end
+	--end
 
 	local credits = ply:GetCredits()
 	local can_order = false -- may not work
