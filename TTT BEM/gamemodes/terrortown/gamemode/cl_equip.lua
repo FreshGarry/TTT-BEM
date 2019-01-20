@@ -203,7 +203,7 @@ local SafeTranslate = LANG.TryTranslation
 
 Equipment = Equipment or {}
 if not TTT2 then
-	function DefaultGetEquipmentForRole(role)
+	function GetEquipmentForRole(role)
 		-- need to build equipment cache?
 		if next(Equipment) == nil then --if not Equipment then
 			-- start with all the non-weapon goodies
